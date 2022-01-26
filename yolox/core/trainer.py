@@ -29,13 +29,17 @@ from yolox.utils import (
     synchronize
 )
 
+from yolox.core.train_progress_ctx import TrainProgressContext
+
 
 class Trainer:
-    def __init__(self, exp, args):
+    def __init__(self, exp, args, progress_ctx: TrainProgressContext):
         # init function only defines some basic attr, other attrs like model, optimizer are built in
         # before_train methods.
         self.exp = exp
         self.args = args
+
+        self.progress_ctx = progress_ctx
 
         # training related attr
         self.max_epoch = exp.max_epoch
@@ -66,6 +70,8 @@ class Trainer:
             mode="a",
         )
 
+        self.progress_ctx.set_train_epoch_count(self.max_epoch)
+
     def train(self):
         self.before_train()
         try:
@@ -82,6 +88,8 @@ class Trainer:
             self.after_epoch()
 
     def train_in_iter(self):
+        self.progress_ctx.start_training()
+
         for self.iter in range(self.max_iter):
             self.before_iter()
             self.train_one_iter()
@@ -91,6 +99,9 @@ class Trainer:
         iter_start_time = time.time()
 
         inps, targets = self.prefetcher.next()
+
+        self.progress_ctx.update_train_progress(targets.shape[0])
+
         inps = inps.to(self.data_type)
         targets = targets.to(self.data_type)
         targets.requires_grad = False
@@ -153,6 +164,8 @@ class Trainer:
         # max_iter means iters per epoch
         self.max_iter = len(self.train_loader)
 
+        self.progress_ctx.set_train_dataset_size(self.max_iter, self.args.batch_size)
+
         self.lr_scheduler = self.exp.get_lr_scheduler(
             self.exp.basic_lr_per_img * self.args.batch_size, self.max_iter
         )
@@ -187,6 +200,8 @@ class Trainer:
     def before_epoch(self):
         logger.info("---> start train epoch{}".format(self.epoch + 1))
 
+        self.progress_ctx.start_epoch(self.epoch)
+
         if self.epoch + 1 == self.max_epoch - self.exp.no_aug_epochs or self.no_aug:
             logger.info("--->No mosaic aug now!")
             self.train_loader.close_mosaic()
@@ -202,9 +217,15 @@ class Trainer:
     def after_epoch(self):
         self.save_ckpt(ckpt_name="latest")
 
+        self.progress_ctx.training_done()
+
+        # Note: no evaluation progress
+        self.progress_ctx.start_evaluation()
         if (self.epoch + 1) % self.exp.eval_interval == 0:
             all_reduce_norm(self.model)
             self.evaluate_and_save_model()
+
+        self.progress_ctx.evaluation_done()
 
     def before_iter(self):
         pass
@@ -302,6 +323,9 @@ class Trainer:
         ap50_95, ap50, summary = self.exp.eval(
             evalmodel, self.evaluator, self.is_distributed
         )
+
+        self.progress_ctx.update_train_ap(ap50_95, ap50)
+
         self.model.train()
         if self.rank == 0:
             self.tblogger.add_scalar("val/COCOAP50", ap50, self.epoch + 1)

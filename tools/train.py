@@ -11,6 +11,7 @@ import torch
 import torch.backends.cudnn as cudnn
 
 from yolox.core import Trainer, launch
+from yolox.core.train_progress_ctx import TrainProgressContext
 from yolox.exp import get_exp
 from yolox.utils import configure_nccl, configure_omp, get_num_devices
 
@@ -106,7 +107,7 @@ def main(exp, args):
     configure_omp()
     cudnn.benchmark = True
 
-    trainer = Trainer(exp, args)
+    trainer = Trainer(exp, args, TrainProgressContext())
     trainer.train()
 
 
