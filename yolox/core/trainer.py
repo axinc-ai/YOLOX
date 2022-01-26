@@ -100,7 +100,8 @@ class Trainer:
 
         inps, targets = self.prefetcher.next()
 
-        self.progress_ctx.update_train_progress(targets.shape[0])
+        # update the train progress by one iteration
+        self.progress_ctx.update_train_progress(1)
 
         inps = inps.to(self.data_type)
         targets = targets.to(self.data_type)
@@ -164,7 +165,8 @@ class Trainer:
         # max_iter means iters per epoch
         self.max_iter = len(self.train_loader)
 
-        self.progress_ctx.set_train_dataset_size(self.max_iter, self.args.batch_size)
+        # iteration number
+        self.progress_ctx.set_train_dataset_size(self.max_iter, 1)
 
         self.lr_scheduler = self.exp.get_lr_scheduler(
             self.exp.basic_lr_per_img * self.args.batch_size, self.max_iter
@@ -196,6 +198,7 @@ class Trainer:
         logger.info(
             "Training of experiment is done and the best AP is {:.2f}".format(self.best_ap * 100)
         )
+        self.progress_ctx.training_finished()
 
     def before_epoch(self):
         logger.info("---> start train epoch{}".format(self.epoch + 1))
