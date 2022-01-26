@@ -41,7 +41,7 @@ class TrainProgressContext:
     def evaluation_done(self):
         pass
 
-    def update_checkpoint(self, model):
+    def update_checkpoint(self, epoch: int, best: bool, name: str):
         pass
 
     def is_stopped(self):

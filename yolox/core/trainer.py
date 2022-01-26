@@ -354,3 +354,4 @@ class Trainer:
                 self.file_name,
                 ckpt_name,
             )
+            self.progress_ctx.update_checkpoint(self.epoch + 1, update_best_ckpt, ckpt_name)
